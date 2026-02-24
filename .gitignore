@@ -1,0 +1,15 @@
+# Служебные папки сборки
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Публикация
+publish/
+
+# Исполняемые файлы
+*.exe
+*.zip
