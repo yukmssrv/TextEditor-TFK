@@ -501,7 +501,6 @@ namespace LAB1_TFK
                             column++;
                         }
 
-                        //если строка не закрыта
                         if (i >= text.Length || text[i] != quote)
                         {
                             tokens.Add(new Token
@@ -517,7 +516,6 @@ namespace LAB1_TFK
                             continue;
                         }
 
-                        //добавляем закрывающую кавычку
                         lexeme += text[i];
                         i++;
                         column++;
@@ -598,7 +596,7 @@ namespace LAB1_TFK
                         continue;
                     }
 
-                    // ОШИБКА
+                    // ошибка
                     tokens.Add(new Token
                     {
                         Code = -1,
