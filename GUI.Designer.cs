@@ -67,12 +67,12 @@
             toolStripButtonCut = new ToolStripButton();
             toolStripButtonPast = new ToolStripButton();
             toolStripButtonRun = new ToolStripButton();
+            toolStripSeparator2 = new ToolStripSeparator();
             toolStripButtonQuestion = new ToolStripButton();
             toolStripButtonInformation = new ToolStripButton();
             dataGridView1 = new DataGridView();
             splitContainer1 = new SplitContainer();
             richTextBoxCompil = new RichTextBox();
-            toolStripSeparator2 = new ToolStripSeparator();
             menuStrip1.SuspendLayout();
             toolStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
@@ -246,6 +246,7 @@
             пускToolStripMenuItem.Name = "пускToolStripMenuItem";
             пускToolStripMenuItem.Size = new Size(60, 27);
             пускToolStripMenuItem.Text = "Пуск";
+            пускToolStripMenuItem.Click += пускToolStripMenuItem_Click;
             // 
             // справкаToolStripMenuItem1
             // 
@@ -375,6 +376,11 @@
             toolStripButtonRun.Text = "Запуск";
             toolStripButtonRun.Click += toolStripButtonRun_Click;
             // 
+            // toolStripSeparator2
+            // 
+            toolStripSeparator2.Name = "toolStripSeparator2";
+            toolStripSeparator2.Size = new Size(6, 29);
+            // 
             // toolStripButtonQuestion
             // 
             toolStripButtonQuestion.DisplayStyle = ToolStripItemDisplayStyle.Image;
@@ -397,6 +403,7 @@
             // 
             // dataGridView1
             // 
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dataGridView1.BackgroundColor = SystemColors.Window;
             dataGridView1.BorderStyle = BorderStyle.Fixed3D;
             dataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
@@ -439,11 +446,6 @@
             richTextBoxCompil.Size = new Size(790, 369);
             richTextBoxCompil.TabIndex = 3;
             richTextBoxCompil.Text = "";
-            // 
-            // toolStripSeparator2
-            // 
-            toolStripSeparator2.Name = "toolStripSeparator2";
-            toolStripSeparator2.Size = new Size(6, 29);
             // 
             // GUI
             // 

@@ -16,11 +16,13 @@ namespace LAB1_TFK
     {
         private string currentFilePath = null;
         private bool isTextChanged = false;
+        int errorPosition = -1;
         public GUI()
         {
             InitializeComponent();
-            splitContainer1.Visible = false;
             richTextBoxCompil.TextChanged += richTextBoxCompil_TextChanged;
+            this.FormClosing += GUI_FormClosing;
+            dataGridView1.CellClick += dataGridView1_CellClick;
 
         }
         private void richTextBoxCompil_TextChanged(object sender, EventArgs e)
@@ -48,7 +50,6 @@ namespace LAB1_TFK
                 }
             }
 
-            splitContainer1.Visible = true;
             richTextBoxCompil.Clear();
             dataGridView1.Rows.Clear();
             dataGridView1.Columns.Clear();
@@ -303,7 +304,7 @@ namespace LAB1_TFK
 
         private void toolStripButtonRun_Click(object sender, EventArgs e)
         {
-            //пускToolStripMenuItem_Click(sender, e);
+            пускToolStripMenuItem_Click(sender, e);
         }
 
         private void toolStripButtonQuestion_Click(object sender, EventArgs e)
@@ -314,6 +315,367 @@ namespace LAB1_TFK
         private void toolStripButtonInformation_Click(object sender, EventArgs e)
         {
             оПрограммеToolStripMenuItem_Click(sender, e);
+        }
+        private void GUI_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (isTextChanged)
+            {
+                DialogResult result = MessageBox.Show(
+                    "Сохранить изменения перед выходом?",
+                    "Выход из программы",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    сохранитьToolStripMenuItem_Click(sender, e);
+
+                    // Если после сохранения текст всё ещё изменён (сохранение не удалось или отменено)
+                    if (isTextChanged)
+                    {
+                        e.Cancel = true;
+                    }
+                }
+                else if (result == DialogResult.Cancel)
+                {
+                    e.Cancel = true;
+                }
+            }
+        }
+        public class Token
+        {
+            public int Code { get; set; }
+            public string Type { get; set; }
+            public string Lexeme { get; set; }
+            public int Line { get; set; }
+            public int Start { get; set; }
+            public int End { get; set; }
+        }
+        public class Scanner
+        {
+            public List<Token> Analyze(string text)
+            {
+                List<Token> tokens = new List<Token>();
+
+                int i = 0;
+                int line = 1;
+                int column = 1;
+
+                while (i < text.Length)
+                {
+                    char c = text[i];
+
+                    // пробел
+                    if (c == ' ')
+                    {
+                        tokens.Add(new Token
+                        {
+                            Code = 2,
+                            Type = "Пробел",
+                            Lexeme = " ",
+                            Line = line,
+                            Start = column,
+                            End = column
+                        });
+
+                        i++;
+                        column++;
+                        continue;
+                    }
+
+                    // Перенос строки
+                    if (c == '\n')
+                    {
+                        line++;
+                        column = 1;
+                        i++;
+                        continue;
+                    }
+
+                    //идентификатор
+                    if (char.IsLetter(c))
+                    {
+                        int start = column;
+                        string lexeme = "";
+
+                        while (i < text.Length && char.IsLetter(text[i]))
+                        {
+                            lexeme += text[i];
+                            i++;
+                            column++;
+                        }
+
+                        tokens.Add(new Token
+                        {
+                            Code = 1,
+                            Type = "Идентификатор",
+                            Lexeme = lexeme,
+                            Line = line,
+                            Start = start,
+                            End = column - 1
+                        });
+
+                        continue;
+                    }
+
+                    // число
+                    if (char.IsDigit(c))
+                    {
+                        int start = column;
+                        string lexeme = "";
+                        bool isFloat = false;
+
+                        while (i < text.Length)
+                        {
+                            if (char.IsDigit(text[i]))
+                            {
+                                lexeme += text[i];
+                                i++;
+                                column++;
+                            }
+                            else if (text[i] == '.')
+                            {
+                                if (isFloat)
+                                {
+                                    break;
+                                }
+
+                                isFloat = true;
+                                lexeme += text[i];
+                                i++;
+                                column++;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+
+                        int numberCode;
+                        string type;
+
+                        if (isFloat)
+                        {
+                            numberCode = 6;
+                            type = "Вещественное число";
+                        }
+                        else
+                        {
+                            numberCode = 5;
+                            type = "Целое число";
+                        }
+
+                        tokens.Add(new Token
+                        {
+                            Code = numberCode,
+                            Type = type,
+                            Lexeme = lexeme,
+                            Line = line,
+                            Start = start,
+                            End = column - 1
+                        });
+
+                        continue;
+                    }
+
+                    // строка
+                    if (c == '\'' || c == '\"')
+                    {
+                        int start = column;
+                        char quote = c;
+                        string lexeme = "";
+
+                        lexeme += c;
+                        i++;
+                        column++;
+
+                        while (i < text.Length && text[i] != quote)
+                        {
+                            if (text[i] == '\n')
+                            {
+                                break;
+                            }
+
+                            lexeme += text[i];
+                            i++;
+                            column++;
+                        }
+
+                        //если строка не закрыта
+                        if (i >= text.Length || text[i] != quote)
+                        {
+                            tokens.Add(new Token
+                            {
+                                Code = -1,
+                                Type = "Незакрытая строка",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+
+                            continue;
+                        }
+
+                        //добавляем закрывающую кавычку
+                        lexeme += text[i];
+                        i++;
+                        column++;
+
+                        int stringCode;
+
+                        if (quote == '\'')
+                        {
+                            stringCode = 7;
+                        }
+                        else
+                        {
+                            stringCode = 8;
+                        }
+
+                        tokens.Add(new Token
+                        {
+                            Code = stringCode,
+                            Type = "Строка",
+                            Lexeme = lexeme,
+                            Line = line,
+                            Start = start,
+                            End = column - 1
+                        });
+
+                        continue;
+                    }
+
+                    // операторы и разделители
+                    int code = -1;
+                    string typeOp = "";
+
+                    if (c == '=')
+                    {
+                        code = 3;
+                        typeOp = "Оператор присваивания";
+                    }
+                    else if (c == '{')
+                    {
+                        code = 4;
+                        typeOp = "Открывающая скобка";
+                    }
+                    else if (c == '}')
+                    {
+                        code = 11;
+                        typeOp = "Закрывающая скобка";
+                    }
+                    else if (c == ':')
+                    {
+                        code = 9;
+                        typeOp = "Двоеточие";
+                    }
+                    else if (c == ',')
+                    {
+                        code = 10;
+                        typeOp = "Запятая";
+                    }
+                    else if (c == ';')
+                    {
+                        code = 12;
+                        typeOp = "Конец оператора";
+                    }
+
+                    if (code != -1)
+                    {
+                        tokens.Add(new Token
+                        {
+                            Code = code,
+                            Type = typeOp,
+                            Lexeme = c.ToString(),
+                            Line = line,
+                            Start = column,
+                            End = column
+                        });
+
+                        i++;
+                        column++;
+                        continue;
+                    }
+
+                    // ОШИБКА
+                    tokens.Add(new Token
+                    {
+                        Code = -1,
+                        Type = "Недопустимый символ",
+                        Lexeme = c.ToString(),
+                        Line = line,
+                        Start = column,
+                        End = column
+                    });
+
+                    i++;
+                    column++;
+                }
+
+                return tokens;
+            }
+        }
+        private void пускToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string text = richTextBoxCompil.Text;
+
+            dataGridView1.Rows.Clear();
+            dataGridView1.Columns.Clear();
+
+            dataGridView1.Columns.Add("Code", "Код");
+            dataGridView1.Columns.Add("Type", "Тип");
+            dataGridView1.Columns.Add("Lexeme", "Лексема");
+            dataGridView1.Columns.Add("Position", "Позиция");
+
+            Scanner scanner = new Scanner();
+            List<Token> tokens = scanner.Analyze(text);
+
+            foreach (Token token in tokens)
+            {
+                string codeText;
+
+                if (token.Code == -1)
+                {
+                    codeText = "ERROR";
+                }
+                else
+                {
+                    codeText = token.Code.ToString();
+                }
+
+                string position = "строка " + token.Line + ": " + token.Start + "-" + token.End;
+
+                int rowIndex = dataGridView1.Rows.Add(
+                    codeText,
+                    token.Type,
+                    token.Lexeme,
+                    position
+                );
+
+                dataGridView1.Rows[rowIndex].Tag = token;
+            }
+        }
+        private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            DataGridViewRow row = dataGridView1.Rows[e.RowIndex];
+
+            Token token = row.Tag as Token;
+
+            if (token == null) return;
+
+            // переход к символу
+            int charIndex = richTextBoxCompil.GetFirstCharIndexFromLine(token.Line - 1) + token.Start - 1;
+
+            if (charIndex >= 0)
+            {
+                richTextBoxCompil.Focus();
+                richTextBoxCompil.SelectionStart = charIndex;
+                richTextBoxCompil.SelectionLength = token.End - token.Start + 1;
+                richTextBoxCompil.ScrollToCaret();
+            }
         }
     }
 }
