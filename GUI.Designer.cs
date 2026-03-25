@@ -70,16 +70,24 @@
             toolStripSeparator2 = new ToolStripSeparator();
             toolStripButtonQuestion = new ToolStripButton();
             toolStripButtonInformation = new ToolStripButton();
-            dataGridView1 = new DataGridView();
+            dataGridViewLexer = new DataGridView();
             splitContainer1 = new SplitContainer();
             richTextBoxCompil = new RichTextBox();
+            tabControl1 = new TabControl();
+            Parser = new TabPage();
+            dataGridViewParser = new DataGridView();
+            Lexer = new TabPage();
             menuStrip1.SuspendLayout();
             toolStrip1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)dataGridViewLexer).BeginInit();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
             splitContainer1.Panel2.SuspendLayout();
             splitContainer1.SuspendLayout();
+            tabControl1.SuspendLayout();
+            Parser.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dataGridViewParser).BeginInit();
+            Lexer.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip1
@@ -401,20 +409,20 @@
             toolStripButtonInformation.Text = "Информация о программе";
             toolStripButtonInformation.Click += toolStripButtonInformation_Click;
             // 
-            // dataGridView1
+            // dataGridViewLexer
             // 
-            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dataGridView1.BackgroundColor = SystemColors.Window;
-            dataGridView1.BorderStyle = BorderStyle.Fixed3D;
-            dataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dataGridView1.Dock = DockStyle.Fill;
-            dataGridView1.Location = new Point(0, 0);
-            dataGridView1.Margin = new Padding(3, 4, 3, 4);
-            dataGridView1.Name = "dataGridView1";
-            dataGridView1.RowHeadersWidth = 51;
-            dataGridView1.RowTemplate.Height = 24;
-            dataGridView1.Size = new Size(790, 176);
-            dataGridView1.TabIndex = 3;
+            dataGridViewLexer.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewLexer.BackgroundColor = SystemColors.Window;
+            dataGridViewLexer.BorderStyle = BorderStyle.Fixed3D;
+            dataGridViewLexer.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dataGridViewLexer.Dock = DockStyle.Fill;
+            dataGridViewLexer.Location = new Point(3, 3);
+            dataGridViewLexer.Margin = new Padding(3, 4, 3, 4);
+            dataGridViewLexer.Name = "dataGridViewLexer";
+            dataGridViewLexer.RowHeadersWidth = 51;
+            dataGridViewLexer.RowTemplate.Height = 24;
+            dataGridViewLexer.Size = new Size(776, 314);
+            dataGridViewLexer.TabIndex = 3;
             // 
             // splitContainer1
             // 
@@ -430,9 +438,9 @@
             // 
             // splitContainer1.Panel2
             // 
-            splitContainer1.Panel2.Controls.Add(dataGridView1);
+            splitContainer1.Panel2.Controls.Add(tabControl1);
             splitContainer1.Size = new Size(790, 550);
-            splitContainer1.SplitterDistance = 369;
+            splitContainer1.SplitterDistance = 192;
             splitContainer1.SplitterWidth = 5;
             splitContainer1.TabIndex = 4;
             // 
@@ -443,9 +451,57 @@
             richTextBoxCompil.Location = new Point(0, 0);
             richTextBoxCompil.Margin = new Padding(3, 4, 3, 4);
             richTextBoxCompil.Name = "richTextBoxCompil";
-            richTextBoxCompil.Size = new Size(790, 369);
+            richTextBoxCompil.Size = new Size(790, 192);
             richTextBoxCompil.TabIndex = 3;
             richTextBoxCompil.Text = "";
+            // 
+            // tabControl1
+            // 
+            tabControl1.Controls.Add(Parser);
+            tabControl1.Controls.Add(Lexer);
+            tabControl1.Dock = DockStyle.Fill;
+            tabControl1.Location = new Point(0, 0);
+            tabControl1.Name = "tabControl1";
+            tabControl1.SelectedIndex = 0;
+            tabControl1.Size = new Size(790, 353);
+            tabControl1.TabIndex = 4;
+            // 
+            // Parser
+            // 
+            Parser.Controls.Add(dataGridViewParser);
+            Parser.Location = new Point(4, 29);
+            Parser.Name = "Parser";
+            Parser.Padding = new Padding(3);
+            Parser.Size = new Size(782, 320);
+            Parser.TabIndex = 0;
+            Parser.Text = "Парсер";
+            Parser.UseVisualStyleBackColor = true;
+            // 
+            // dataGridViewParser
+            // 
+            dataGridViewParser.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewParser.BackgroundColor = SystemColors.Window;
+            dataGridViewParser.BorderStyle = BorderStyle.Fixed3D;
+            dataGridViewParser.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dataGridViewParser.Dock = DockStyle.Fill;
+            dataGridViewParser.Location = new Point(3, 3);
+            dataGridViewParser.Margin = new Padding(3, 4, 3, 4);
+            dataGridViewParser.Name = "dataGridViewParser";
+            dataGridViewParser.RowHeadersWidth = 51;
+            dataGridViewParser.RowTemplate.Height = 29;
+            dataGridViewParser.Size = new Size(776, 314);
+            dataGridViewParser.TabIndex = 0;
+            // 
+            // Lexer
+            // 
+            Lexer.Controls.Add(dataGridViewLexer);
+            Lexer.Location = new Point(4, 29);
+            Lexer.Name = "Lexer";
+            Lexer.Padding = new Padding(3);
+            Lexer.Size = new Size(782, 320);
+            Lexer.TabIndex = 1;
+            Lexer.Text = "Лексер";
+            Lexer.UseVisualStyleBackColor = true;
             // 
             // GUI
             // 
@@ -467,11 +523,15 @@
             menuStrip1.PerformLayout();
             toolStrip1.ResumeLayout(false);
             toolStrip1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
+            ((System.ComponentModel.ISupportInitialize)dataGridViewLexer).EndInit();
             splitContainer1.Panel1.ResumeLayout(false);
             splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
             splitContainer1.ResumeLayout(false);
+            tabControl1.ResumeLayout(false);
+            Parser.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dataGridViewParser).EndInit();
+            Lexer.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -512,7 +572,7 @@
         private ToolStripButton toolStripButtonCopy;
         private ToolStripButton toolStripButtonCut;
         private ToolStripButton toolStripButtonPast;
-        private DataGridView dataGridView1;
+        private DataGridView dataGridViewLexer;
         private ToolStripButton toolStripButtonRun;
         private ToolStripButton toolStripButtonQuestion;
         private ToolStripButton toolStripButtonInformation;
@@ -522,6 +582,10 @@
         private ToolStripMenuItem оПрограммеToolStripMenuItem;
         private RichTextBox richTextBoxCompil;
         private ToolStripSeparator toolStripSeparator2;
+        private TabControl tabControl1;
+        private TabPage Parser;
+        private TabPage Lexer;
+        private DataGridView dataGridViewParser;
     }
 }
 

@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using System.Collections.Generic;
 
 namespace LAB1_TFK
 {
@@ -22,8 +23,8 @@ namespace LAB1_TFK
             InitializeComponent();
             richTextBoxCompil.TextChanged += richTextBoxCompil_TextChanged;
             this.FormClosing += GUI_FormClosing;
-            dataGridView1.CellClick += dataGridView1_CellClick;
-
+            dataGridViewLexer.CellClick += dataGridView1_CellClick;
+            dataGridViewParser.CellClick += dataGridViewParser_CellClick;
         }
         private void richTextBoxCompil_TextChanged(object sender, EventArgs e)
         {
@@ -51,8 +52,8 @@ namespace LAB1_TFK
             }
 
             richTextBoxCompil.Clear();
-            dataGridView1.Rows.Clear();
-            dataGridView1.Columns.Clear();
+            dataGridViewLexer.Rows.Clear();
+            dataGridViewLexer.Columns.Clear();
 
             currentFilePath = null;
 
@@ -78,8 +79,8 @@ namespace LAB1_TFK
                     // Вставляем текст в текстовое поле
                     richTextBoxCompil.Text = fileContent;
 
-                    dataGridView1.Rows.Clear();
-                    dataGridView1.Columns.Clear();
+                    dataGridViewLexer.Rows.Clear();
+                    dataGridViewLexer.Columns.Clear();
                 }
                 catch (Exception ex)
                 {
@@ -342,6 +343,85 @@ namespace LAB1_TFK
                 }
             }
         }
+        private void пускToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string text = richTextBoxCompil.Text;
+
+            //Лексический анализатор
+            dataGridViewLexer.Rows.Clear();
+            dataGridViewLexer.Columns.Clear();
+
+            dataGridViewLexer.Columns.Add("Code", "Код");
+            dataGridViewLexer.Columns.Add("Type", "Тип");
+            dataGridViewLexer.Columns.Add("Lexeme", "Лексема");
+            dataGridViewLexer.Columns.Add("Position", "Позиция");
+
+            Scanner scanner = new Scanner();
+            List<Token> tokens = scanner.Analyze(text);
+
+            foreach (Token token in tokens)
+            {
+                string codeText;
+
+                if (token.Code == -1)
+                {
+                    codeText = "ERROR";
+                }
+                else
+                {
+                    codeText = token.Code.ToString();
+                }
+
+                string position = "строка " + token.Line + ": " + token.Start + "-" + token.End;
+
+                int rowIndex = dataGridViewLexer.Rows.Add(
+                    codeText,
+                    token.Type,
+                    token.Lexeme,
+                    position
+                );
+
+                dataGridViewLexer.Rows[rowIndex].Tag = token;
+            }
+            //Синтаксический анализатор
+            dataGridViewParser.Rows.Clear();
+            dataGridViewParser.Columns.Clear();
+
+            // Добавляем колонки для ошибок
+            dataGridViewParser.Columns.Add("InvalidFragment", "Неверный фрагмент");
+            dataGridViewParser.Columns.Add("Location", "Местоположение");
+            dataGridViewParser.Columns.Add("Description", "Описание ошибки");
+
+            // Запускаем парсер
+            SyntaxParser parser = new SyntaxParser();
+            List<ParseError> errors = parser.Parse(tokens);
+
+            if (errors.Count == 0)
+            {
+                // Выводим сообщение об успешном анализе
+                dataGridViewParser.Rows.Add("—", "—", "Синтаксических ошибок не обнаружено.");
+                dataGridViewParser.Columns[0].Width = 80;
+                dataGridViewParser.Columns[1].Width = 110;
+                dataGridViewParser.Columns[2].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            }
+            else
+            {
+                // Заполняем таблицу ошибок
+                foreach (ParseError error in errors)
+                {
+                    string location = $"строка {error.Line}, позиция {error.Column}";
+                    int rowIndex = dataGridViewParser.Rows.Add(error.InvalidFragment, location, error.Description);
+                    dataGridViewParser.Rows[rowIndex].Tag = error;
+                }
+
+                // Обновляем заголовок вкладки парсера с количеством ошибок
+                if (tabControl1.TabPages.ContainsKey("Parser"))
+                {
+                    tabControl1.TabPages["Parser"].Text = $"Парсер (ошибок: {errors.Count})";
+                }
+            }
+        }
+        //ЛЕКСЕР
         public class Token
         {
             public int Code { get; set; }
@@ -397,23 +477,59 @@ namespace LAB1_TFK
                     {
                         int start = column;
                         string lexeme = "";
+                        bool hasError = false;
 
-                        while (i < text.Length && char.IsLetter(text[i]))
+                        while (i < text.Length)
                         {
-                            lexeme += text[i];
+                            char current = text[i];
+                            // стоп-символы
+                            if (current == ' ' || current == '\n' ||
+                                current == '=' || current == '{' || current == '}' ||
+                                current == ':' || current == ',' || current == ';')
+                            {
+                                break;
+                            }
+
+                            // допустимые символы
+                            if (char.IsLetterOrDigit(current))
+                            {
+                                lexeme += current;
+                            }
+                            else
+                            {
+                                // любой другой символ - ошибка
+                                hasError = true;
+                                lexeme += current;
+                            }
+
                             i++;
                             column++;
                         }
 
-                        tokens.Add(new Token
+                        if (hasError)
                         {
-                            Code = 1,
-                            Type = "Идентификатор",
-                            Lexeme = lexeme,
-                            Line = line,
-                            Start = start,
-                            End = column - 1
-                        });
+                            tokens.Add(new Token
+                            {
+                                Code = -1,
+                                Type = "Недопустимый идентификатор",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+                        }
+                        else
+                        {
+                            tokens.Add(new Token
+                            {
+                                Code = 1,
+                                Type = "Идентификатор",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+                        }
 
                         continue;
                     }
@@ -597,68 +713,53 @@ namespace LAB1_TFK
                     }
 
                     // ошибка
+                    int errorStart = column;
+                    string errorLexeme = "";
+
+                    while (i < text.Length)
+                    {
+                        char current = text[i];
+
+                        if (char.IsLetter(current) ||
+                            char.IsDigit(current) ||
+                            current == ' ' ||
+                            current == '\n' ||
+                            current == '\'' ||
+                            current == '\"' ||
+                            current == '=' ||
+                            current == '{' ||
+                            current == '}' ||
+                            current == ':' ||
+                            current == ',' ||
+                            current == ';')
+                        {
+                            break;
+                        }
+
+                        errorLexeme += current;
+                        i++;
+                        column++;
+                    }
+
                     tokens.Add(new Token
                     {
                         Code = -1,
-                        Type = "Недопустимый символ",
-                        Lexeme = c.ToString(),
+                        Type = "Недопустимая последовательность",
+                        Lexeme = errorLexeme,
                         Line = line,
-                        Start = column,
-                        End = column
+                        Start = errorStart,
+                        End = column - 1
                     });
-
-                    i++;
-                    column++;
                 }
 
                 return tokens;
-            }
-        }
-        private void пускToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            string text = richTextBoxCompil.Text;
-
-            dataGridView1.Rows.Clear();
-            dataGridView1.Columns.Clear();
-
-            dataGridView1.Columns.Add("Code", "Код");
-            dataGridView1.Columns.Add("Type", "Тип");
-            dataGridView1.Columns.Add("Lexeme", "Лексема");
-            dataGridView1.Columns.Add("Position", "Позиция");
-
-            Scanner scanner = new Scanner();
-            List<Token> tokens = scanner.Analyze(text);
-
-            foreach (Token token in tokens)
-            {
-                string codeText;
-
-                if (token.Code == -1)
-                {
-                    codeText = "ERROR";
-                }
-                else
-                {
-                    codeText = token.Code.ToString();
-                }
-
-                string position = "строка " + token.Line + ": " + token.Start + "-" + token.End;
-
-                int rowIndex = dataGridView1.Rows.Add(
-                    codeText,
-                    token.Type,
-                    token.Lexeme,
-                    position
-                );
-
-                dataGridView1.Rows[rowIndex].Tag = token;
             }
         }
         private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
 
-            DataGridViewRow row = dataGridView1.Rows[e.RowIndex];
+            DataGridViewRow row = dataGridViewLexer.Rows[e.RowIndex];
 
             Token token = row.Tag as Token;
 
@@ -673,6 +774,312 @@ namespace LAB1_TFK
                 richTextBoxCompil.SelectionStart = charIndex;
                 richTextBoxCompil.SelectionLength = token.End - token.Start + 1;
                 richTextBoxCompil.ScrollToCaret();
+            }
+        }
+        //ПАРСЕР
+        public class ParseError
+        {
+            public string InvalidFragment { get; set; }
+            public int Line { get; set; }
+            public int Column { get; set; }
+            public string Description { get; set; }
+        }
+
+        public class SyntaxParser
+        {
+            private List<Token> tokens;
+            private int pos;
+            private List<ParseError> errors;
+
+            public List<ParseError> Parse(List<Token> tokenList)
+            {
+                tokens = tokenList;
+                pos = 0;
+                errors = new List<ParseError>();
+
+                SkipSpaces();
+
+                bool success = ParseProgram();
+
+                if (pos < tokens.Count && success)
+                {
+                    Token leftover = tokens[pos];
+                    AddError(leftover, "Лишние символы после завершения программы");
+                }
+
+                return errors;
+            }
+
+            // Пропуск пробелов (код 2)
+            private void SkipSpaces()
+            {
+                while (pos < tokens.Count && tokens[pos].Code == 2)
+                    pos++;
+            }
+
+            // Добавление записи об ошибке
+            private void AddError(Token token, string description)
+            {
+                errors.Add(new ParseError
+                {
+                    InvalidFragment = token.Lexeme,
+                    Line = token.Line,
+                    Column = token.Start,
+                    Description = description
+                });
+            }
+
+            // Проверка текущего токена на соответствие ожидаемому коду
+            private bool Check(int expectedCode)
+            {
+                SkipSpaces();
+                if (pos >= tokens.Count) return false;
+                return tokens[pos].Code == expectedCode;
+            }
+
+            // Получение текущего токена 
+            private Token CurrentToken()
+            {
+                SkipSpaces();
+                if (pos < tokens.Count)
+                {
+                    return tokens[pos];
+                }
+                return null;
+            }
+
+            // Переход к следующему токену 
+            private void Advance()
+            {
+                if (pos < tokens.Count)
+                    pos++;
+                SkipSpaces();
+            }
+
+            // Синхронизация: пропуск токенов до встречи одного из заданных кодов
+            private void Synchronize(HashSet<int> syncCodes)
+            {
+                while (pos < tokens.Count)
+                {
+                    if (syncCodes.Contains(tokens[pos].Code))
+                        break;
+                    pos++;
+                }
+                SkipSpaces();
+            }
+
+            // <START> -> <DICTIONARY> ';' { <DICTIONARY> ';' }
+            private bool ParseProgram()
+            {
+                bool anySuccess = false;
+                while (pos < tokens.Count)
+                {
+                    SkipSpaces();
+                    if (pos >= tokens.Count) break;
+
+                    bool assignmentOk = ParseAssignment();
+
+                    if (assignmentOk)
+                    {
+                        // Ожидаем точку с запятой после объявления
+                        if (!Check(12))
+                        {
+                            Token t = CurrentToken();
+                            if (t == null) t = tokens[tokens.Count - 1];
+                            AddError(t, "Ожидалась точка с запятой ';'");
+                            Synchronize(new HashSet<int> { 1 });
+                            continue;
+                        }
+                        Advance();
+                        anySuccess = true;
+                    }
+                    else
+                    {
+                        Synchronize(new HashSet<int> { 1 });
+                    }
+                }
+                return anySuccess;
+            }
+
+            // <DICTIONARY> -> <IDENTIFIER> '=' <DICT>
+            private bool ParseAssignment()
+            {
+                // Идентификатор
+                if (!Check(1))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидался идентификатор (имя переменной)");
+                    return false;
+                }
+                Advance();
+
+                // '='
+                if (!Check(3))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидался знак равенства '='");
+                    return false;
+                }
+                Advance();
+
+                // Словарь
+                if (!ParseDict())
+                    return false;
+
+                return true;
+            }
+
+            // <DICT> -> '{' <PAIRS> '}' | '{' '}'
+            private bool ParseDict()
+            {
+                if (!Check(4))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидалась открывающая фигурная скобка '{'");
+                    return false;
+                }
+                Advance();
+
+                // Пустой словарь
+                if (Check(11))
+                {
+                    Advance();
+                    return true;
+                }
+                bool pairListOk = ParsePairList();
+
+                // Ожидаем '}'
+                if (!Check(11))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидалась закрывающая фигурная скобка '}'");
+                    return false;
+                }
+                Advance();
+
+                return pairListOk;
+            }
+
+            // <PAIRS> -> <PAIR> <PAIRS_TAIL>
+            // <PAIRS_TAIL> -> ',' <PAIR> <PAIRS_TAIL> | ε
+            private bool ParsePairList()
+            {
+                while (true)
+                {
+                    int savedPos = pos;
+                    bool pairOk = ParsePair();
+
+                    if (!pairOk)
+                    {
+                        if (pos == savedPos && pos < tokens.Count)
+                        {
+                            Token t = CurrentToken();
+                            if (t != null)
+                            {
+                                AddError(t, "Неверный фрагмент, пропущено");
+                                Advance();
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (Check(10)) // запятая
+                    {
+                        Advance();
+                        if (Check(11))
+                        {
+                            AddError(CurrentToken(), "Лишняя запятая перед закрывающей скобкой");
+                            break;
+                        }
+                    }
+                    else if (Check(11)) // закрывающая скобка
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        Token t = CurrentToken();
+                        if (t == null) t = tokens[tokens.Count - 1];
+                        AddError(t, "Ожидалась запятая или закрывающая скобка");
+
+                        // Пропускаем до ближайшей запятой или '}'
+                        Synchronize(new HashSet<int> { 10, 11 });
+                        if (Check(10))
+                        {
+                            Advance(); // переходим за запятой
+                            continue;
+                        }
+                        else if (Check(11))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            // <PAIR> -> <KEY> ':' <VALUE>
+            private bool ParsePair()
+            {
+                // Ключ (целое, вещественное или строка)
+                if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидалось целое число, вещественное число или строка в качестве ключа");
+                    return false;
+                }
+                Advance();
+
+                // ':'
+                if (!Check(9))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидалось двоеточие ':' после ключа");
+                    return false;
+                }
+                Advance();
+
+                // Значение (целое, вещественное или строка)
+                if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
+                {
+                    Token t = CurrentToken();
+                    if (t == null) t = tokens[tokens.Count - 1];
+                    AddError(t, "Ожидалось значение (целое, вещественное или строка)");
+                    return false;
+                }
+                Advance();
+
+                return true;
+            }
+        }
+        private void dataGridViewParser_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            DataGridViewRow row = dataGridViewParser.Rows[e.RowIndex];
+            if (row.Tag is ParseError error)
+            {
+                // Переход к позиции ошибки
+                int line = error.Line;
+                int column = error.Column;
+                int charIndex = richTextBoxCompil.GetFirstCharIndexFromLine(line - 1) + column - 1;
+                if (charIndex >= 0)
+                {
+                    richTextBoxCompil.Focus();
+                    richTextBoxCompil.SelectionStart = charIndex;
+                    richTextBoxCompil.SelectionLength = error.InvalidFragment.Length;
+                    richTextBoxCompil.ScrollToCaret();
+                }
             }
         }
     }

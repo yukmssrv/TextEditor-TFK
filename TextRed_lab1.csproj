@@ -9,10 +9,26 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="screen\Grr.png" />
+    <None Remove="screen\pr3.png" />
+    <None Remove="screen\pr4.png" />
+    <None Remove="screen\pr5.png" />
     <None Remove="screen\ТФЯиК_лаба2.png" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="screen\Grr.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="screen\pr3.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="screen\pr4.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="screen\pr5.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="screen\ТФЯиК_лаба2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
