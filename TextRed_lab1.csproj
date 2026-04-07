@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <None Remove="screen\Grr.png" />
+    <None Remove="screen\lab2_correctly.png" />
+    <None Remove="screen\lab2_uncorrect2.png" />
     <None Remove="screen\pr3.png" />
     <None Remove="screen\pr4.png" />
     <None Remove="screen\pr5.png" />
@@ -18,6 +20,12 @@
 
   <ItemGroup>
     <Content Include="screen\Grr.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="screen\lab2_correctly.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="screen\lab2_uncorrect2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="screen\pr3.png">

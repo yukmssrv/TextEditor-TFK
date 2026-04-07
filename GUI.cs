@@ -477,7 +477,6 @@ namespace LAB1_TFK
                     {
                         int start = column;
                         string lexeme = "";
-                        bool hasError = false;
 
                         while (i < text.Length)
                         {
@@ -497,39 +496,21 @@ namespace LAB1_TFK
                             }
                             else
                             {
-                                // любой другой символ - ошибка
-                                hasError = true;
-                                lexeme += current;
+                                break;
                             }
 
                             i++;
                             column++;
                         }
-
-                        if (hasError)
+                        tokens.Add(new Token
                         {
-                            tokens.Add(new Token
-                            {
-                                Code = -1,
-                                Type = "Недопустимый идентификатор",
-                                Lexeme = lexeme,
-                                Line = line,
-                                Start = start,
-                                End = column - 1
-                            });
-                        }
-                        else
-                        {
-                            tokens.Add(new Token
-                            {
-                                Code = 1,
-                                Type = "Идентификатор",
-                                Lexeme = lexeme,
-                                Line = line,
-                                Start = start,
-                                End = column - 1
-                            });
-                        }
+                            Code = 1,
+                            Type = "Идентификатор",
+                            Lexeme = lexeme,
+                            Line = line,
+                            Start = start,
+                            End = column - 1
+                        });
 
                         continue;
                     }
@@ -790,21 +771,48 @@ namespace LAB1_TFK
             private List<Token> tokens;
             private int pos;
             private List<ParseError> errors;
+            private int lastErrorLine = -1;
+            private int lastErrorColumn = -1;
 
             public List<ParseError> Parse(List<Token> tokenList)
             {
                 tokens = tokenList;
                 pos = 0;
                 errors = new List<ParseError>();
+                lastErrorLine = -1;
+                lastErrorColumn = -1;
 
                 SkipSpaces();
 
-                bool success = ParseProgram();
-
-                if (pos < tokens.Count && success)
+                // Продолжаем парсить до конца токенов
+                while (pos < tokens.Count)
                 {
-                    Token leftover = tokens[pos];
-                    AddError(leftover, "Лишние символы после завершения программы");
+                    int savedPos = pos;
+
+                    // Пытаемся распарсить программу
+                    bool success = ParseProgram();
+
+                    // Если не удалось распарсить и мы не продвинулись, пропускаем токен
+                    if (!success && pos == savedPos)
+                    {
+                        Token current = tokens[pos];
+                        // Добавляем ошибку только если это не новая строка или пробел
+                        if (current.Code != 2 && current.Code != 12)
+                        {
+                            AddError(current, "Неожиданная конструкция");
+                        }
+                        pos++;
+                        SkipSpaces();
+                    }
+                    else if (success)
+                    {
+                        // Если успешно распарсили, продолжаем
+                        continue;
+                    }
+                    else
+                    {
+                        SkipSpaces();
+                    }
                 }
 
                 return errors;
@@ -817,16 +825,22 @@ namespace LAB1_TFK
                     pos++;
             }
 
-            // Добавление записи об ошибке
+            // Добавление записи об ошибке (с проверкой дублирования на той же позиции)
             private void AddError(Token token, string description)
             {
-                errors.Add(new ParseError
+                // Проверяем, не добавляли ли уже ошибку на этой же строке и позиции
+                if (token != null && (token.Line != lastErrorLine || token.Start != lastErrorColumn))
                 {
-                    InvalidFragment = token.Lexeme,
-                    Line = token.Line,
-                    Column = token.Start,
-                    Description = description
-                });
+                    errors.Add(new ParseError
+                    {
+                        InvalidFragment = token.Lexeme,
+                        Line = token.Line,
+                        Column = token.Start,
+                        Description = description
+                    });
+                    lastErrorLine = token.Line;
+                    lastErrorColumn = token.Start;
+                }
             }
 
             // Проверка текущего токена на соответствие ожидаемому коду
@@ -871,45 +885,61 @@ namespace LAB1_TFK
             // <START> -> <DICTIONARY> ';' { <DICTIONARY> ';' }
             private bool ParseProgram()
             {
-                bool anySuccess = false;
-                while (pos < tokens.Count)
+                SkipSpaces();
+                if (pos >= tokens.Count) return false;
+
+                // Сохраняем позицию для проверки прогресса
+                int savedPos = pos;
+
+                bool assignmentOk = ParseAssignment();
+
+                if (assignmentOk)
                 {
-                    SkipSpaces();
-                    if (pos >= tokens.Count) break;
-
-                    bool assignmentOk = ParseAssignment();
-
-                    if (assignmentOk)
+                    // Ожидаем точку с запятой после объявления
+                    if (Check(12))
                     {
-                        // Ожидаем точку с запятой после объявления
-                        if (!Check(12))
-                        {
-                            Token t = CurrentToken();
-                            if (t == null) t = tokens[tokens.Count - 1];
-                            AddError(t, "Ожидалась точка с запятой ';'");
-                            Synchronize(new HashSet<int> { 1 });
-                            continue;
-                        }
                         Advance();
-                        anySuccess = true;
+                        return true;
                     }
                     else
                     {
-                        Synchronize(new HashSet<int> { 1 });
+                        Token t = CurrentToken();
+                        if (t != null && t.Code != 11) // Если не закрывающая скобка
+                        {
+                            AddError(t, "Ожидалась точка с запятой ';'");
+                        }
+                        // Пропускаем до следующей точки с запятой или идентификатора
+                        Synchronize(new HashSet<int> { 12, 1 });
+                        return true;
                     }
                 }
-                return anySuccess;
+
+                return false;
             }
 
             // <DICTIONARY> -> <IDENTIFIER> '=' <DICT>
             private bool ParseAssignment()
             {
+                int savedPos = pos;
+
                 // Идентификатор
                 if (!Check(1))
                 {
-                    Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидался идентификатор (имя переменной)");
+                    // Если нет идентификатора, но есть '=', это ошибка
+                    if (Check(3))
+                    {
+                        Token t = CurrentToken();
+                        AddError(t, "Пропущен идентификатор перед '='");
+                        // Пытаемся продолжить, пропуская '='
+                        Advance();
+
+                        // Пробуем распарсить словарь
+                        if (ParseDict())
+                        {
+                            return true;
+                        }
+                        return false;
+                    }
                     return false;
                 }
                 Advance();
@@ -918,15 +948,19 @@ namespace LAB1_TFK
                 if (!Check(3))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидался знак равенства '='");
+                    if (t != null)
+                    {
+                        AddError(t, "Ожидался знак равенства '='");
+                    }
                     return false;
                 }
                 Advance();
 
                 // Словарь
                 if (!ParseDict())
+                {
                     return false;
+                }
 
                 return true;
             }
@@ -937,8 +971,11 @@ namespace LAB1_TFK
                 if (!Check(4))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидалась открывающая фигурная скобка '{'");
+                    if (t != null)
+                    {
+                        // Если ожидаем открывающую скобку, а встретили что-то другое
+                        AddError(t, "Ожидалась открывающая фигурная скобка '{'");
+                    }
                     return false;
                 }
                 Advance();
@@ -949,14 +986,28 @@ namespace LAB1_TFK
                     Advance();
                     return true;
                 }
+
                 bool pairListOk = ParsePairList();
 
                 // Ожидаем '}'
                 if (!Check(11))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидалась закрывающая фигурная скобка '}'");
+                    if (t != null)
+                    {
+                        AddError(t, "Ожидалась закрывающая фигурная скобка '}'");
+                    }
+                    // Ищем закрывающую скобку
+                    int tempPos = pos;
+                    while (tempPos < tokens.Count && tokens[tempPos].Code != 11 && tokens[tempPos].Code != 12)
+                    {
+                        tempPos++;
+                    }
+                    if (tempPos < tokens.Count && tokens[tempPos].Code == 11)
+                    {
+                        pos = tempPos;
+                        Advance();
+                    }
                     return false;
                 }
                 Advance();
@@ -968,54 +1019,91 @@ namespace LAB1_TFK
             // <PAIRS_TAIL> -> ',' <PAIR> <PAIRS_TAIL> | ε
             private bool ParsePairList()
             {
+                bool hasAtLeastOnePair = false;
+
                 while (true)
                 {
-                    int savedPos = pos;
-                    bool pairOk = ParsePair();
+                    SkipSpaces();
+                    if (pos >= tokens.Count) break;
 
-                    if (!pairOk)
-                    {
-                        if (pos == savedPos && pos < tokens.Count)
-                        {
-                            Token t = CurrentToken();
-                            if (t != null)
-                            {
-                                AddError(t, "Неверный фрагмент, пропущено");
-                                Advance();
-                            }
-                        }
-                        continue;
-                    }
-
-                    if (Check(10)) // запятая
-                    {
-                        Advance();
-                        if (Check(11))
-                        {
-                            AddError(CurrentToken(), "Лишняя запятая перед закрывающей скобкой");
-                            break;
-                        }
-                    }
-                    else if (Check(11)) // закрывающая скобка
+                    // Проверяем, не закончился ли список
+                    if (Check(11))
                     {
                         break;
                     }
-                    else
-                    {
-                        Token t = CurrentToken();
-                        if (t == null) t = tokens[tokens.Count - 1];
-                        AddError(t, "Ожидалась запятая или закрывающая скобка");
 
-                        // Пропускаем до ближайшей запятой или '}'
-                        Synchronize(new HashSet<int> { 10, 11 });
-                        if (Check(10))
+                    // Проверяем, не встретили ли точку с запятой
+                    if (Check(12))
+                    {
+                        break;
+                    }
+
+                    int savedPos = pos;
+
+                    bool pairOk = ParsePair();
+
+                    if (pairOk)
+                    {
+                        hasAtLeastOnePair = true;
+
+                        // Проверяем следующий токен
+                        SkipSpaces();
+                        if (pos >= tokens.Count) break;
+
+                        if (Check(10)) // запятая
                         {
-                            Advance(); // переходим за запятой
+                            Advance();
+                            // Проверяем на лишнюю запятую перед закрывающей скобкой
+                            if (Check(11))
+                            {
+                                AddError(CurrentToken(), "Лишняя запятая перед закрывающей скобкой");
+                                break;
+                            }
                             continue;
                         }
-                        else if (Check(11))
+                        else if (Check(11) || Check(12)) // закрывающая скобка или точка с запятой
                         {
                             break;
+                        }
+                        else
+                        {
+                            // Если после пары не запятая и не закрывающая скобка
+                            Token t = CurrentToken();
+                            if (t != null && t.Code != 11 && t.Code != 12)
+                            {
+                                AddError(t, "Ожидалась запятая ',' или закрывающая скобка '}'");
+                                // Пропускаем до ближайшей запятой, '}' или ';'
+                                Synchronize(new HashSet<int> { 10, 11, 12 });
+                                if (Check(10))
+                                {
+                                    Advance();
+                                    continue;
+                                }
+                                else if (Check(11) || Check(12))
+                                {
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        // Если не удалось распарсить пару
+                        if (pos == savedPos && pos < tokens.Count)
+                        {
+                            Token t = CurrentToken();
+                            // Пропускаем токен, только если это не закрывающая скобка и не точка с запятой
+                            if (t != null && t.Code != 11 && t.Code != 12)
+                            {
+                                AddError(t, "Ожидалась пара ключ:значение");
+                                Advance();
+                                continue;
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
                         else
                         {
@@ -1023,18 +1111,23 @@ namespace LAB1_TFK
                         }
                     }
                 }
-                return true;
+
+                return hasAtLeastOnePair;
             }
 
             // <PAIR> -> <KEY> ':' <VALUE>
             private bool ParsePair()
             {
+                int savedPos = pos;
+
                 // Ключ (целое, вещественное или строка)
                 if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидалось целое число, вещественное число или строка в качестве ключа");
+                    if (t != null && t.Code != 11 && t.Code != 10 && t.Code != 12)
+                    {
+                        AddError(t, "Ожидалось целое число, вещественное число или строка в качестве ключа");
+                    }
                     return false;
                 }
                 Advance();
@@ -1043,8 +1136,10 @@ namespace LAB1_TFK
                 if (!Check(9))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидалось двоеточие ':' после ключа");
+                    if (t != null)
+                    {
+                        AddError(t, "Ожидалось двоеточие ':' после ключа");
+                    }
                     return false;
                 }
                 Advance();
@@ -1053,8 +1148,10 @@ namespace LAB1_TFK
                 if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
                 {
                     Token t = CurrentToken();
-                    if (t == null) t = tokens[tokens.Count - 1];
-                    AddError(t, "Ожидалось значение (целое, вещественное или строка)");
+                    if (t != null && t.Code != 11 && t.Code != 10 && t.Code != 12)
+                    {
+                        AddError(t, "Ожидалось значение (целое, вещественное или строка)");
+                    }
                     return false;
                 }
                 Advance();
