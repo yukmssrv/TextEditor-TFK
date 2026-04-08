@@ -77,6 +77,10 @@
             Parser = new TabPage();
             dataGridViewParser = new DataGridView();
             Lexer = new TabPage();
+            Regular = new TabPage();
+            buttonSearch = new Button();
+            dataGridViewRegular = new DataGridView();
+            comboBoxRegular = new ComboBox();
             menuStrip1.SuspendLayout();
             toolStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridViewLexer).BeginInit();
@@ -88,6 +92,8 @@
             Parser.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridViewParser).BeginInit();
             Lexer.SuspendLayout();
+            Regular.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dataGridViewRegular).BeginInit();
             SuspendLayout();
             // 
             // menuStrip1
@@ -459,6 +465,7 @@
             // 
             tabControl1.Controls.Add(Parser);
             tabControl1.Controls.Add(Lexer);
+            tabControl1.Controls.Add(Regular);
             tabControl1.Dock = DockStyle.Fill;
             tabControl1.Location = new Point(0, 0);
             tabControl1.Name = "tabControl1";
@@ -503,6 +510,58 @@
             Lexer.Text = "Лексер";
             Lexer.UseVisualStyleBackColor = true;
             // 
+            // Regular
+            // 
+            Regular.Controls.Add(dataGridViewRegular);
+            Regular.Controls.Add(buttonSearch);
+            Regular.Controls.Add(comboBoxRegular);
+            Regular.Location = new Point(4, 29);
+            Regular.Name = "Regular";
+            Regular.Padding = new Padding(3);
+            Regular.Size = new Size(782, 320);
+            Regular.TabIndex = 2;
+            Regular.Text = "Регулярные выражения";
+            Regular.UseVisualStyleBackColor = true;
+            // 
+            // buttonSearch
+            // 
+            buttonSearch.BackColor = SystemColors.Window;
+            buttonSearch.Dock = DockStyle.Top;
+            buttonSearch.FlatStyle = FlatStyle.Flat;
+            buttonSearch.Location = new Point(3, 31);
+            buttonSearch.Name = "buttonSearch";
+            buttonSearch.Size = new Size(776, 34);
+            buttonSearch.TabIndex = 2;
+            buttonSearch.Text = "Поиск";
+            buttonSearch.UseVisualStyleBackColor = false;
+            buttonSearch.Click += buttonSearch_Click;
+            // 
+            // dataGridViewRegular
+            // 
+            dataGridViewRegular.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewRegular.BackgroundColor = SystemColors.Window;
+            dataGridViewRegular.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dataGridViewRegular.Dock = DockStyle.Fill;
+            dataGridViewRegular.Location = new Point(3, 65);
+            dataGridViewRegular.MultiSelect = false;
+            dataGridViewRegular.Name = "dataGridViewRegular";
+            dataGridViewRegular.RowHeadersWidth = 51;
+            dataGridViewRegular.RowTemplate.Height = 29;
+            dataGridViewRegular.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dataGridViewRegular.Size = new Size(776, 252);
+            dataGridViewRegular.TabIndex = 1;
+            // 
+            // comboBoxRegular
+            // 
+            comboBoxRegular.Dock = DockStyle.Top;
+            comboBoxRegular.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBoxRegular.FormattingEnabled = true;
+            comboBoxRegular.Items.AddRange(new object[] { "2. Канадские почтовые индексы", "8. Maestro Card", "28. Комплексные числа" });
+            comboBoxRegular.Location = new Point(3, 3);
+            comboBoxRegular.Name = "comboBoxRegular";
+            comboBoxRegular.Size = new Size(776, 28);
+            comboBoxRegular.TabIndex = 0;
+            // 
             // GUI
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -532,6 +591,8 @@
             Parser.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dataGridViewParser).EndInit();
             Lexer.ResumeLayout(false);
+            Regular.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)dataGridViewRegular).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -586,5 +647,9 @@
         private TabPage Parser;
         private TabPage Lexer;
         private DataGridView dataGridViewParser;
+        private TabPage Regular;
+        private DataGridView dataGridViewRegular;
+        private ComboBox comboBoxRegular;
+        private Button buttonSearch;
     }
 }

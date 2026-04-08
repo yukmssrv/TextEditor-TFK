@@ -10,6 +10,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
+using System.Drawing;
 
 namespace LAB1_TFK
 {
@@ -25,6 +28,7 @@ namespace LAB1_TFK
             this.FormClosing += GUI_FormClosing;
             dataGridViewLexer.CellClick += dataGridView1_CellClick;
             dataGridViewParser.CellClick += dataGridViewParser_CellClick;
+            dataGridViewRegular.CellClick += dataGridViewRegular_CellClick;
         }
         private void richTextBoxCompil_TextChanged(object sender, EventArgs e)
         {
@@ -899,6 +903,11 @@ namespace LAB1_TFK
                     if (Check(12))
                     {
                         Advance();
+                        while (Check(12))
+                        {
+                            AddError(CurrentToken(), "Лишняя точка с запятой");
+                            Advance();
+                        }
                         return true;
                     }
                     else
@@ -912,6 +921,7 @@ namespace LAB1_TFK
                         Synchronize(new HashSet<int> { 12, 1 });
                         return true;
                     }
+
                 }
 
                 return false;
@@ -920,49 +930,53 @@ namespace LAB1_TFK
             // <DICTIONARY> -> <IDENTIFIER> '=' <DICT>
             private bool ParseAssignment()
             {
-                int savedPos = pos;
+                bool hasError = false;
 
-                // Идентификатор
                 if (!Check(1))
                 {
-                    // Если нет идентификатора, но есть '=', это ошибка
                     if (Check(3))
                     {
-                        Token t = CurrentToken();
-                        AddError(t, "Пропущен идентификатор перед '='");
-                        // Пытаемся продолжить, пропуская '='
+                        AddError(CurrentToken(), "Пропущен идентификатор перед '='");
                         Advance();
-
-                        // Пробуем распарсить словарь
-                        if (ParseDict())
-                        {
-                            return true;
-                        }
+                        hasError = true;
+                    }
+                    else if (Check(4))
+                    {
+                        AddError(CurrentToken(), "Пропущено имя переменной перед словарём");
+                        return ParseDict();
+                    }
+                    else
+                    {
                         return false;
                     }
-                    return false;
                 }
-                Advance();
+                else
+                {
+                    Advance();
+                }
 
-                // '='
                 if (!Check(3))
                 {
                     Token t = CurrentToken();
-                    if (t != null)
-                    {
-                        AddError(t, "Ожидался знак равенства '='");
-                    }
-                    return false;
-                }
-                Advance();
 
-                // Словарь
+                    if (t != null && t.Code != 4)
+                    {
+                        AddError(t, "Ожидался знак '='");
+                    }
+
+                    hasError = true;
+                }
+                else
+                {
+                    Advance();
+                }
+
                 if (!ParseDict())
                 {
-                    return false;
+                    hasError = true;
                 }
 
-                return true;
+                return true; // ❗ ВСЕГДА true, чтобы продолжать парсинг
             }
 
             // <DICT> -> '{' <PAIRS> '}' | '{' '}'
@@ -1024,18 +1038,17 @@ namespace LAB1_TFK
                 while (true)
                 {
                     SkipSpaces();
+
                     if (pos >= tokens.Count) break;
 
-                    // Проверяем, не закончился ли список
-                    if (Check(11))
-                    {
+                    if (Check(11) || Check(12))
                         break;
-                    }
 
-                    // Проверяем, не встретили ли точку с запятой
-                    if (Check(12))
+                    if (Check(10))
                     {
-                        break;
+                        AddError(CurrentToken(), "Лишняя запятая");
+                        Advance();
+                        continue;
                     }
 
                     int savedPos = pos;
@@ -1053,11 +1066,10 @@ namespace LAB1_TFK
                         if (Check(10)) // запятая
                         {
                             Advance();
-                            // Проверяем на лишнюю запятую перед закрывающей скобкой
-                            if (Check(11))
+                            while (Check(10))
                             {
-                                AddError(CurrentToken(), "Лишняя запятая перед закрывающей скобкой");
-                                break;
+                                AddError(CurrentToken(), "Лишняя запятая");
+                                Advance();
                             }
                             continue;
                         }
@@ -1118,44 +1130,45 @@ namespace LAB1_TFK
             // <PAIR> -> <KEY> ':' <VALUE>
             private bool ParsePair()
             {
-                int savedPos = pos;
+                bool hasError = false;
 
-                // Ключ (целое, вещественное или строка)
+                // КЛЮЧ
                 if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
                 {
-                    Token t = CurrentToken();
-                    if (t != null && t.Code != 11 && t.Code != 10 && t.Code != 12)
-                    {
-                        AddError(t, "Ожидалось целое число, вещественное число или строка в качестве ключа");
-                    }
-                    return false;
+                    AddError(CurrentToken(), "Ожидался ключ");
+                    Advance();
+                    hasError = true;
                 }
-                Advance();
+                else
+                {
+                    Advance();
+                }
 
-                // ':'
+                // :
                 if (!Check(9))
                 {
-                    Token t = CurrentToken();
-                    if (t != null)
-                    {
-                        AddError(t, "Ожидалось двоеточие ':' после ключа");
-                    }
-                    return false;
+                    AddError(CurrentToken(), "Ожидалось ':' после ключа");
                 }
-                Advance();
+                else
+                {
+                    Advance();
+                }
 
-                // Значение (целое, вещественное или строка)
+                // ЗНАЧЕНИЕ
                 if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
                 {
-                    Token t = CurrentToken();
-                    if (t != null && t.Code != 11 && t.Code != 10 && t.Code != 12)
-                    {
-                        AddError(t, "Ожидалось значение (целое, вещественное или строка)");
-                    }
-                    return false;
+                    AddError(CurrentToken(), "Ожидалось значение");
+                    Advance();
+                    hasError = true;
                 }
-                Advance();
-
+                else
+                {
+                    Advance();
+                }
+                if (hasError)
+                {
+                    Synchronize(new HashSet<int> { 10, 11 });
+                }
                 return true;
             }
         }
@@ -1177,6 +1190,103 @@ namespace LAB1_TFK
                     richTextBoxCompil.SelectionLength = error.InvalidFragment.Length;
                     richTextBoxCompil.ScrollToCaret();
                 }
+            }
+        }
+        //РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ
+        private class MatchInfo
+        {
+            public int StartIndex { get; set; }
+            public int Length { get; set; }
+        }
+        private string GetRegexPattern(int selectedIndex)
+        {
+            switch (selectedIndex)
+            {
+                case 0: //комплексные числа
+                    return @"\b[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d\b";
+                case 1: // Maestro Card
+                    return @"\b(50|5[6-9]|6[0-9])[0-9]{16,19}\b";
+                case 2: // Комплексные числа
+                    return @"-?\d+(?:\.\d+)?\s*[+-]\s*\d+(?:\.\d+)?[ij]|\b\d+(?:\.\d+)?[ij]\b";
+                default:
+                    return null;
+            }
+        }
+        private void buttonSearch_Click(object sender, EventArgs e)
+        {
+            dataGridViewRegular.Rows.Clear();
+            dataGridViewRegular.Columns.Clear();
+            dataGridViewRegular.Columns.Add("Match", "Найденная подстрока");
+            dataGridViewRegular.Columns.Add("Position", "Начальная позиция");
+            dataGridViewRegular.Columns.Add("Length", "Длина");
+
+            string text = richTextBoxCompil.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                MessageBox.Show("Нет данных для поиска.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (comboBoxRegular.SelectedIndex == -1)
+            {
+                MessageBox.Show("Выберите тип поиска из списка.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string pattern = GetRegexPattern(comboBoxRegular.SelectedIndex);
+            if (pattern == null)
+            {
+                MessageBox.Show("Не удалось получить шаблон поиска.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            RegexOptions options = RegexOptions.None;
+            if (comboBoxRegular.SelectedIndex == 0 || comboBoxRegular.SelectedIndex == 2)
+            {
+                options = RegexOptions.IgnoreCase;
+            }
+
+            Regex regex = new Regex(pattern, options);
+            MatchCollection matches = regex.Matches(text);
+
+            if (matches.Count == 0)
+            {
+                MessageBox.Show("Совпадений не найдено.", "Результат поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            foreach (Match match in matches)
+            {
+                int startIndex = match.Index;
+                int length = match.Length;
+                string matchedText = match.Value;
+
+                // Вычисление номера строки и позиции в строке
+                int line = richTextBoxCompil.GetLineFromCharIndex(startIndex);
+                int firstCharOfLine = richTextBoxCompil.GetFirstCharIndexFromLine(line);
+                int column = startIndex - firstCharOfLine + 1;
+                string position = $"строка {line + 1}, символ {column}";
+
+                int rowIndex = dataGridViewRegular.Rows.Add(matchedText, position, length);
+                dataGridViewRegular.Rows[rowIndex].Tag = new MatchInfo { StartIndex = startIndex, Length = length };
+            }
+
+            MessageBox.Show($"Найдено совпадений: {matches.Count}", "Результат поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            richTextBoxCompil.SelectionLength = 0;
+        }
+        private void dataGridViewRegular_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            DataGridViewRow row = dataGridViewRegular.Rows[e.RowIndex];
+            MatchInfo info = row.Tag as MatchInfo;
+            if (info != null)
+            {
+                richTextBoxCompil.SelectionStart = info.StartIndex;
+                richTextBoxCompil.SelectionLength = info.Length;
+                richTextBoxCompil.Focus();
+                richTextBoxCompil.ScrollToCaret();
             }
         }
     }
