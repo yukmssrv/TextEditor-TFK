@@ -1203,11 +1203,11 @@ namespace LAB1_TFK
             switch (selectedIndex)
             {
                 case 0: //комплексные числа
-                    return @"\b[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d\b";
+                    return @"[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d";
                 case 1: // Maestro Card
-                    return @"\b(50|5[6-9]|6[0-9])[0-9]{16,19}\b";
+                    return @"(50|5[6-9]|6[0-9])[0-9]{16,19}";
                 case 2: // Комплексные числа
-                    return @"-?\d+(?:\.\d+)?\s*[+-]\s*\d+(?:\.\d+)?[ij]|\b\d+(?:\.\d+)?[ij]\b";
+                    return @"-?\d+(?:\.\d+)?\s*[+-]\s*\d+(?:\.\d+)?[ij]|\d+(?:\.\d+)?[ij]";
                 default:
                     return null;
             }
@@ -1246,7 +1246,8 @@ namespace LAB1_TFK
                 options = RegexOptions.IgnoreCase;
             }
 
-            Regex regex = new Regex(pattern, options);
+            string overlappingPattern = $"(?=({pattern}))";
+            Regex regex = new Regex(overlappingPattern, options);
             MatchCollection matches = regex.Matches(text);
 
             if (matches.Count == 0)
@@ -1255,24 +1256,27 @@ namespace LAB1_TFK
                 return;
             }
 
+            int foundCount = 0;
             foreach (Match match in matches)
             {
-                int startIndex = match.Index;
-                int length = match.Length;
-                string matchedText = match.Value;
+                if (match.Groups[1].Success)
+                {
+                    string matchedText = match.Groups[1].Value;
+                    int startIndex = match.Groups[1].Index;
+                    int length = matchedText.Length;
 
-                // Вычисление номера строки и позиции в строке
-                int line = richTextBoxCompil.GetLineFromCharIndex(startIndex);
-                int firstCharOfLine = richTextBoxCompil.GetFirstCharIndexFromLine(line);
-                int column = startIndex - firstCharOfLine + 1;
-                string position = $"строка {line + 1}, символ {column}";
+                    int line = richTextBoxCompil.GetLineFromCharIndex(startIndex);
+                    int firstCharOfLine = richTextBoxCompil.GetFirstCharIndexFromLine(line);
+                    int column = startIndex - firstCharOfLine + 1;
+                    string position = $"строка {line + 1}, символ {column}";
 
-                int rowIndex = dataGridViewRegular.Rows.Add(matchedText, position, length);
-                dataGridViewRegular.Rows[rowIndex].Tag = new MatchInfo { StartIndex = startIndex, Length = length };
+                    int rowIndex = dataGridViewRegular.Rows.Add(matchedText, position, length);
+                    dataGridViewRegular.Rows[rowIndex].Tag = new MatchInfo { StartIndex = startIndex, Length = length };
+                    foundCount++;
+                }
             }
 
-            MessageBox.Show($"Найдено совпадений: {matches.Count}", "Результат поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
+            MessageBox.Show($"Найдено совпадений: {foundCount}", "Результат поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
             richTextBoxCompil.SelectionLength = 0;
         }
         private void dataGridViewRegular_CellClick(object sender, DataGridViewCellEventArgs e)
