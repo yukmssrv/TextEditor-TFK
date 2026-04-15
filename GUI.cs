@@ -335,7 +335,6 @@ namespace LAB1_TFK
                 {
                     сохранитьToolStripMenuItem_Click(sender, e);
 
-                    // Если после сохранения текст всё ещё изменён (сохранение не удалось или отменено)
                     if (isTextChanged)
                     {
                         e.Cancel = true;
@@ -391,18 +390,31 @@ namespace LAB1_TFK
             dataGridViewParser.Rows.Clear();
             dataGridViewParser.Columns.Clear();
 
-            // Добавляем колонки для ошибок
             dataGridViewParser.Columns.Add("InvalidFragment", "Неверный фрагмент");
             dataGridViewParser.Columns.Add("Location", "Местоположение");
             dataGridViewParser.Columns.Add("Description", "Описание ошибки");
 
             // Запускаем парсер
+            TokenValidator validator = new TokenValidator();
+            List<ParseError> errors = new List<ParseError>();
+
+            errors.AddRange(validator.Validate(tokens));
+
             SyntaxParser parser = new SyntaxParser();
-            List<ParseError> errors = parser.Parse(tokens);
+            errors.AddRange(parser.Parse(tokens));
+
+            errors = errors
+                .GroupBy(e => new { e.Line, e.Column, e.Description })
+                .Select(g => g.First())
+                .ToList();
+
+            if (tabControl1.TabPages.ContainsKey("Parser"))
+            {
+                tabControl1.TabPages["Parser"].Text = $"Парсер (ошибок: {errors.Count})";
+            }
 
             if (errors.Count == 0)
             {
-                // Выводим сообщение об успешном анализе
                 dataGridViewParser.Rows.Add("—", "—", "Синтаксических ошибок не обнаружено.");
                 dataGridViewParser.Columns[0].Width = 80;
                 dataGridViewParser.Columns[1].Width = 110;
@@ -410,7 +422,6 @@ namespace LAB1_TFK
             }
             else
             {
-                // Заполняем таблицу ошибок
                 foreach (ParseError error in errors)
                 {
                     string location = $"строка {error.Line}, позиция {error.Column}";
@@ -418,11 +429,6 @@ namespace LAB1_TFK
                     dataGridViewParser.Rows[rowIndex].Tag = error;
                 }
 
-                // Обновляем заголовок вкладки парсера с количеством ошибок
-                if (tabControl1.TabPages.ContainsKey("Parser"))
-                {
-                    tabControl1.TabPages["Parser"].Text = $"Парсер (ошибок: {errors.Count})";
-                }
             }
         }
         //ЛЕКСЕР
@@ -769,407 +775,454 @@ namespace LAB1_TFK
             public int Column { get; set; }
             public string Description { get; set; }
         }
-
-        public class SyntaxParser
+        public class TokenValidator
         {
-            private List<Token> tokens;
-            private int pos;
-            private List<ParseError> errors;
-            private int lastErrorLine = -1;
-            private int lastErrorColumn = -1;
-
-            public List<ParseError> Parse(List<Token> tokenList)
+            public List<ParseError> Validate(List<Token> tokens)
             {
-                tokens = tokenList;
-                pos = 0;
-                errors = new List<ParseError>();
-                lastErrorLine = -1;
-                lastErrorColumn = -1;
+                List<ParseError> errors = new List<ParseError>();
 
-                SkipSpaces();
+                List<Token> significantTokens = new List<Token>();
 
-                // Продолжаем парсить до конца токенов
-                while (pos < tokens.Count)
+                foreach (Token token in tokens)
                 {
-                    int savedPos = pos;
+                    if (token.Code == -1)
+                    {
+                        AddError(errors, token, "Лексическая ошибка");
+                    }
 
-                    // Пытаемся распарсить программу
-                    bool success = ParseProgram();
+                    if (token.Code != 2)
+                        significantTokens.Add(token);
+                }
 
-                    // Если не удалось распарсить и мы не продвинулись, пропускаем токен
-                    if (!success && pos == savedPos)
+                for (int i = 0; i < significantTokens.Count - 1; i++)
+                {
+                    var current = significantTokens[i];
+                    var next = significantTokens[i + 1];
+
+                    // Повторяющиеся символы
+                    if (current.Code == next.Code && IsRepeatableSymbol(current.Code))
                     {
-                        Token current = tokens[pos];
-                        // Добавляем ошибку только если это не новая строка или пробел
-                        if (current.Code != 2 && current.Code != 12)
-                        {
-                            AddError(current, "Неожиданная конструкция");
-                        }
-                        pos++;
-                        SkipSpaces();
+                        if (current.Code == 10) // ,
+                            AddError(errors, next, "Повторяющаяся запятая");
+
+                        if (current.Code == 12) // ;
+                            AddError(errors, next, "Повторяющаяся ';'");
+
+                        if (current.Code == 3) // =
+                            AddError(errors, next, "Повторяющийся '='");
+
+                        if (current.Code == 9) // :
+                            AddError(errors, next, "Повторяющееся ':'");
+
+                        if (current.Code == 4) // {
+                            AddError(errors, next, "Лишняя '{'");
+
+                        if (current.Code == 11) // }
+                            AddError(errors, next, "Лишняя '}'");
                     }
-                    else if (success)
-                    {
-                        // Если успешно распарсили, продолжаем
-                        continue;
-                    }
-                    else
-                    {
-                        SkipSpaces();
-                    }
+
+                    //  Запрещеные комбинации
+                    if (current.Code == 10 && next.Code == 11)
+                        AddError(errors, current, "Лишняя запятая перед '}'");
+
+                    if (current.Code == 3 && next.Code == 11) // =}
+                        AddError(errors, next, "После '=' ожидалось выражение");
+
+                    if (current.Code == 9 && next.Code == 10) // :,
+                        AddError(errors, next, "После ':' нет значения");
+
+                    if (current.Code == 4 && next.Code == 10) // {,
+                        AddError(errors, next, "После '{' не может идти ','");
                 }
 
                 return errors;
             }
 
-            // Пропуск пробелов (код 2)
-            private void SkipSpaces()
+            private bool IsRepeatableSymbol(int code)
             {
-                while (pos < tokens.Count && tokens[pos].Code == 2)
-                    pos++;
+                return code == 3 || code == 4 || code == 9 || code == 10 || code == 11 || code == 12;
             }
 
-            // Добавление записи об ошибке (с проверкой дублирования на той же позиции)
-            private void AddError(Token token, string description)
+            private bool IsDictionaryInvalidSymbol(int code)
             {
-                // Проверяем, не добавляли ли уже ошибку на этой же строке и позиции
-                if (token != null && (token.Line != lastErrorLine || token.Start != lastErrorColumn))
+                return code == 3 || code == 4 || code == 9 || code == 12;
+            }
+
+            private void AddError(List<ParseError> errors, Token token, string message)
+            {
+                errors.Add(new ParseError
+                {
+                    InvalidFragment = token.Lexeme,
+                    Line = token.Line,
+                    Column = token.Start,
+                    Description = message
+                });
+            }
+        }
+        public class SyntaxParser
+        {
+            private List<Token> tokens;
+            private int current = 0;
+            private List<ParseError> errors = new List<ParseError>();
+
+            public List<ParseError> Parse(List<Token> tokens)
+            {
+                this.tokens = tokens;
+                current = 0;
+                errors.Clear();
+
+                if (tokens == null || tokens.Count == 0)
                 {
                     errors.Add(new ParseError
                     {
-                        InvalidFragment = token.Lexeme,
-                        Line = token.Line,
-                        Column = token.Start,
-                        Description = description
+                        InvalidFragment = "",
+                        Line = 1,
+                        Column = 1,
+                        Description = "Ожидалось объявление словаря"
                     });
-                    lastErrorLine = token.Line;
-                    lastErrorColumn = token.Start;
+
+                    return errors;
                 }
+
+                Start();
+
+                return errors;
             }
 
-            // Проверка текущего токена на соответствие ожидаемому коду
-            private bool Check(int expectedCode)
+            private Token CurrentToken
             {
-                SkipSpaces();
-                if (pos >= tokens.Count) return false;
-                return tokens[pos].Code == expectedCode;
-            }
-
-            // Получение текущего токена 
-            private Token CurrentToken()
-            {
-                SkipSpaces();
-                if (pos < tokens.Count)
+                get
                 {
-                    return tokens[pos];
-                }
-                return null;
-            }
-
-            // Переход к следующему токену 
-            private void Advance()
-            {
-                if (pos < tokens.Count)
-                    pos++;
-                SkipSpaces();
-            }
-
-            // Синхронизация: пропуск токенов до встречи одного из заданных кодов
-            private void Synchronize(HashSet<int> syncCodes)
-            {
-                while (pos < tokens.Count)
-                {
-                    if (syncCodes.Contains(tokens[pos].Code))
-                        break;
-                    pos++;
-                }
-                SkipSpaces();
-            }
-
-            // <START> -> <DICTIONARY> ';' { <DICTIONARY> ';' }
-            private bool ParseProgram()
-            {
-                SkipSpaces();
-                if (pos >= tokens.Count) return false;
-
-                // Сохраняем позицию для проверки прогресса
-                int savedPos = pos;
-
-                bool assignmentOk = ParseAssignment();
-
-                if (assignmentOk)
-                {
-                    // Ожидаем точку с запятой после объявления
-                    if (Check(12))
+                    SkipIgnored();
+                    if (current < tokens.Count)
                     {
-                        Advance();
-                        while (Check(12))
-                        {
-                            AddError(CurrentToken(), "Лишняя точка с запятой");
-                            Advance();
-                        }
-                        return true;
-                    }
-                    else
-                    {
-                        Token t = CurrentToken();
-                        if (t != null && t.Code != 11) // Если не закрывающая скобка
-                        {
-                            AddError(t, "Ожидалась точка с запятой ';'");
-                        }
-                        // Пропускаем до следующей точки с запятой или идентификатора
-                        Synchronize(new HashSet<int> { 12, 1 });
-                        return true;
+                        return tokens[current];
                     }
 
-                }
+                    Token lastToken = tokens.Last();
 
+                    return new Token
+                    {
+                        Code = 0,
+                        Type = "Конец ввода",
+                        Lexeme = "",
+                        Line = lastToken.Line,
+                        Start = lastToken.End + 1,
+                        End = lastToken.End + 1
+                    };
+                }
+            }
+
+            private bool IsEnd()
+            {
+                return CurrentToken.Code == 0;
+            }
+
+            private bool IsValueToken(int code)
+            {
+                return code == 5 || code == 6 || code == 7 || code == 8;
+            }
+
+            private bool IsRepeatableSymbol(int code)
+            {
+                return code == 3 || code == 4 || code == 9 || code == 10 || code == 11 || code == 12;
+            }
+
+            private bool IsDictionaryInvalidSymbol(int code)
+            {
+                return code == 3 || code == 4 || code == 9 || code == 12;
+            }
+
+            private bool Match(int code)
+            {
+                if (CurrentToken.Code == code)
+                {
+                    current++;
+                    SkipRepeatedSymbols(code);
+                    return true;
+                }
                 return false;
             }
 
-            // <DICTIONARY> -> <IDENTIFIER> '=' <DICT>
-            private bool ParseAssignment()
+            private void Error(string message)
             {
-                bool hasError = false;
-
-                if (!Check(1))
+                errors.Add(new ParseError
                 {
-                    if (Check(3))
-                    {
-                        AddError(CurrentToken(), "Пропущен идентификатор перед '='");
-                        Advance();
-                        hasError = true;
-                    }
-                    else if (Check(4))
-                    {
-                        AddError(CurrentToken(), "Пропущено имя переменной перед словарём");
-                        return ParseDict();
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-                else
-                {
-                    Advance();
-                }
-
-                if (!Check(3))
-                {
-                    Token t = CurrentToken();
-
-                    if (t != null && t.Code != 4)
-                    {
-                        AddError(t, "Ожидался знак '='");
-                    }
-
-                    hasError = true;
-                }
-                else
-                {
-                    Advance();
-                }
-
-                if (!ParseDict())
-                {
-                    hasError = true;
-                }
-
-                return true; // ❗ ВСЕГДА true, чтобы продолжать парсинг
+                    InvalidFragment = string.IsNullOrEmpty(CurrentToken.Lexeme) ? "конец строки" : CurrentToken.Lexeme,
+                    Line = CurrentToken.Line,
+                    Column = CurrentToken.Start,
+                    Description = message
+                });
             }
 
-            // <DICT> -> '{' <PAIRS> '}' | '{' '}'
-            private bool ParseDict()
+            // Метод Айронса
+            private void Synchronize(bool consume, params int[] followSet)
             {
-                if (!Check(4))
+                while (current < tokens.Count)
                 {
-                    Token t = CurrentToken();
-                    if (t != null)
+                    foreach (int code in followSet)
                     {
-                        // Если ожидаем открывающую скобку, а встретили что-то другое
-                        AddError(t, "Ожидалась открывающая фигурная скобка '{'");
+                        if (CurrentToken.Code == code)
+                        {
+                            if (consume) current++;
+                            return;
+                        }
                     }
-                    return false;
+                    current++;
                 }
-                Advance();
-
-                // Пустой словарь
-                if (Check(11))
-                {
-                    Advance();
-                    return true;
-                }
-
-                bool pairListOk = ParsePairList();
-
-                // Ожидаем '}'
-                if (!Check(11))
-                {
-                    Token t = CurrentToken();
-                    if (t != null)
-                    {
-                        AddError(t, "Ожидалась закрывающая фигурная скобка '}'");
-                    }
-                    // Ищем закрывающую скобку
-                    int tempPos = pos;
-                    while (tempPos < tokens.Count && tokens[tempPos].Code != 11 && tokens[tempPos].Code != 12)
-                    {
-                        tempPos++;
-                    }
-                    if (tempPos < tokens.Count && tokens[tempPos].Code == 11)
-                    {
-                        pos = tempPos;
-                        Advance();
-                    }
-                    return false;
-                }
-                Advance();
-
-                return pairListOk;
+            }
+            private void SkipIgnored()
+            {
+                while (current < tokens.Count && tokens[current].Code == 2)
+                    current++;
             }
 
-            // <PAIRS> -> <PAIR> <PAIRS_TAIL>
-            // <PAIRS_TAIL> -> ',' <PAIR> <PAIRS_TAIL> | ε
-            private bool ParsePairList()
+            private void SkipRepeatedSymbols(int code)
             {
-                bool hasAtLeastOnePair = false;
+                if (!IsRepeatableSymbol(code))
+                    return;
 
                 while (true)
                 {
-                    SkipSpaces();
+                    SkipIgnored();
 
-                    if (pos >= tokens.Count) break;
-
-                    if (Check(11) || Check(12))
+                    if (current < tokens.Count && tokens[current].Code == code)
+                        current++;
+                    else
                         break;
+                }
+            }
 
-                    if (Check(10))
+            // START → DICTIONARY ';' { DICTIONARY ';' }
+            private void Start()
+            {
+                while (!IsEnd())
+                {
+                    bool needSemicolon = Dictionary();
+
+                    if (Match(12)) // ;
                     {
-                        AddError(CurrentToken(), "Лишняя запятая");
-                        Advance();
                         continue;
                     }
 
-                    int savedPos = pos;
-
-                    bool pairOk = ParsePair();
-
-                    if (pairOk)
+                    if (needSemicolon)
                     {
-                        hasAtLeastOnePair = true;
+                        Error("Ожидался символ ';'");
 
-                        // Проверяем следующий токен
-                        SkipSpaces();
-                        if (pos >= tokens.Count) break;
-
-                        if (Check(10)) // запятая
-                        {
-                            Advance();
-                            while (Check(10))
-                            {
-                                AddError(CurrentToken(), "Лишняя запятая");
-                                Advance();
-                            }
+                        if (CurrentToken.Code == 1)
                             continue;
-                        }
-                        else if (Check(11) || Check(12)) // закрывающая скобка или точка с запятой
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            // Если после пары не запятая и не закрывающая скобка
-                            Token t = CurrentToken();
-                            if (t != null && t.Code != 11 && t.Code != 12)
-                            {
-                                AddError(t, "Ожидалась запятая ',' или закрывающая скобка '}'");
-                                // Пропускаем до ближайшей запятой, '}' или ';'
-                                Synchronize(new HashSet<int> { 10, 11, 12 });
-                                if (Check(10))
-                                {
-                                    Advance();
-                                    continue;
-                                }
-                                else if (Check(11) || Check(12))
-                                {
-                                    break;
-                                }
-                            }
-                            break;
-                        }
                     }
-                    else
-                    {
-                        // Если не удалось распарсить пару
-                        if (pos == savedPos && pos < tokens.Count)
-                        {
-                            Token t = CurrentToken();
-                            // Пропускаем токен, только если это не закрывающая скобка и не точка с запятой
-                            if (t != null && t.Code != 11 && t.Code != 12)
-                            {
-                                AddError(t, "Ожидалась пара ключ:значение");
-                                Advance();
-                                continue;
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                }
 
-                return hasAtLeastOnePair;
+                    Synchronize(true, 12);
+                }
             }
 
-            // <PAIR> -> <KEY> ':' <VALUE>
-            private bool ParsePair()
+            // DICTIONARY → IDENTIFIER '=' DICT
+            private bool Dictionary()
             {
-                bool hasError = false;
-
-                // КЛЮЧ
-                if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
+                if (!Match(1))
                 {
-                    AddError(CurrentToken(), "Ожидался ключ");
-                    Advance();
-                    hasError = true;
-                }
-                else
-                {
-                    Advance();
+                    Error("Ожидался идентификатор");
+                    Synchronize(true, 12);
+                    return false;
                 }
 
-                // :
-                if (!Check(9))
+                if (!Match(3)) // =
                 {
-                    AddError(CurrentToken(), "Ожидалось ':' после ключа");
-                }
-                else
-                {
-                    Advance();
+                    Error("Ожидался '='");
+
+                    if (IsEnd())
+                        return false;
+
+                    Synchronize(false, 4, 12);
+
+                    if (CurrentToken.Code != 4)
+                        return false;
                 }
 
-                // ЗНАЧЕНИЕ
-                if (!Check(5) && !Check(6) && !Check(7) && !Check(8))
-                {
-                    AddError(CurrentToken(), "Ожидалось значение");
-                    Advance();
-                    hasError = true;
-                }
-                else
-                {
-                    Advance();
-                }
-                if (hasError)
-                {
-                    Synchronize(new HashSet<int> { 10, 11 });
-                }
+                Dict();
                 return true;
+            }
+
+            // DICT → '{' PAIRS '}' | '{' '}'
+            private void Dict()
+            {
+                if (!Match(4)) // {
+                {
+                    if (CurrentToken.Code == 3)
+                    {
+                        Synchronize(false, 4, 12);
+
+                        if (Match(4))
+                        {
+                            if (Match(11)) // {}
+                                return;
+
+                            Pairs();
+
+                            if (!Match(11)) // }
+                            {
+                                Error("Ожидалась '}'");
+                                Synchronize(false, 12);
+                            }
+                        }
+
+                        return;
+                    }
+
+                    Error("Ожидалась '{'");
+                    Synchronize(false, 11, 12);
+
+                    if (CurrentToken.Code == 11) current++; // }
+                    return;
+                }
+
+                if (Match(11)) // {}
+                    return;
+
+                bool needClosingBrace = Pairs();
+
+                if (needClosingBrace && !Match(11)) // }
+                {
+                    Error("Ожидалась '}'");
+                    Synchronize(false, 12);
+                }
+
+                if (!needClosingBrace && IsEnd())
+                {
+                    Error("Ожидалась '}'");
+                }
+            }
+
+            // PAIRS → PAIR { , PAIR }
+            private bool Pairs()
+            {
+                while (CurrentToken.Code == 10)
+                {
+                    current++;
+                }
+
+                if (CurrentToken.Code == 11)
+                    return true;
+
+                if (CurrentToken.Code == 12 || IsEnd())
+                    return false;
+
+                Pair();
+
+                while (true)
+                {
+                    if (CurrentToken.Code == 11) // }
+                        return true;
+
+                    if (CurrentToken.Code == 12 || IsEnd())
+                        return false;
+
+                    if (Match(10)) // ,
+                    {
+                        while (CurrentToken.Code == 10)
+                        {
+                            current++;
+                        }
+
+                        if (CurrentToken.Code == 11) // }
+                            return true;
+
+                        if (CurrentToken.Code == 12 || IsEnd())
+                            return false;
+
+                        Pair();
+                        continue;
+                    }
+
+                    if (IsDictionaryInvalidSymbol(CurrentToken.Code))
+                    {
+                        Error("Недопустимый символ внутри словаря");
+                        Synchronize(false, 11, 12);
+
+                        if (CurrentToken.Code == 11)
+                            return true;
+
+                        return false;
+                    }
+
+                    Error("Ожидалась ',' или '}'");
+                    Synchronize(false, 11);
+
+                    if (CurrentToken.Code == 11)
+                        return true;
+
+                    return false;
+                }
+            }
+
+            // PAIR → KEY ':' VALUE
+            private void Pair()
+            {
+                if (CurrentToken.Code == 11) // }
+                    return;
+
+                Key();
+
+                if (CurrentToken.Code == 11)
+                    return;
+
+                if (!Match(9)) // :
+                {
+                    Error("Ожидалось ':'");
+                    Synchronize(false, 10, 11);
+                    return;
+                }
+
+                Value();
+            }
+
+            private void Key()
+            {
+                if (CurrentToken.Code == 11) return;
+
+                if (CurrentToken.Code == -1)
+                {
+                    if (CurrentToken.Lexeme == ".")
+                        Error("Ожидалась цифра перед десятичной точкой");
+                    else
+                        Error("Недопустимый ключ словаря");
+
+                    Synchronize(false, 9, 10, 11);
+                    return;
+                }
+
+                if (!IsValueToken(CurrentToken.Code))
+                {
+                    Error("Ожидался ключ (число или строка)");
+                    Synchronize(false, 9, 10, 11);
+                    return;
+                }
+
+                current++;
+            }
+
+            private void Value()
+            {
+                if (CurrentToken.Code == -1)
+                {
+                    if (CurrentToken.Lexeme == ".")
+                        Error("Ожидалась цифра перед десятичной точкой");
+                    else
+                        Error("Недопустимое значение словаря");
+
+                    Synchronize(false, 10, 11, 12);
+                    return;
+                }
+
+                if (!IsValueToken(CurrentToken.Code))
+                {
+                    Error("Ожидалось значение (число или строка)");
+                    Synchronize(false, 10, 11, 12);
+                    return;
+                }
+
+                current++;
             }
         }
         private void dataGridViewParser_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -1187,7 +1240,7 @@ namespace LAB1_TFK
                 {
                     richTextBoxCompil.Focus();
                     richTextBoxCompil.SelectionStart = charIndex;
-                    richTextBoxCompil.SelectionLength = error.InvalidFragment.Length;
+                    richTextBoxCompil.SelectionLength = Math.Max(1, error.InvalidFragment.Length);
                     richTextBoxCompil.ScrollToCaret();
                 }
             }
