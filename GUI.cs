@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -443,6 +443,25 @@ namespace LAB1_TFK
         }
         public class Scanner
         {
+            private static bool IsSyntaxDelimiter(char c)
+            {
+                return c == ':' || c == ',' || c == '}' || c == '{' || c == ';' || c == '=';
+            }
+
+            private static bool HasClosingQuoteBeforeLineEnd(string text, int startIndex, char quote)
+            {
+                for (int j = startIndex; j < text.Length; j++)
+                {
+                    if (text[j] == '\n')
+                        return false;
+
+                    if (text[j] == quote)
+                        return true;
+                }
+
+                return false;
+            }
+
             public List<Token> Analyze(string text)
             {
                 List<Token> tokens = new List<Token>();
@@ -482,11 +501,13 @@ namespace LAB1_TFK
                         continue;
                     }
 
-                    //идентификатор
+                    // идентификатор (если встречен недопустимый символ внутри,
+                    // вся последовательность до разделителя считается невалидным идентификатором)
                     if (char.IsLetter(c))
                     {
                         int start = column;
                         string lexeme = "";
+                        bool hasInvalidChar = false;
 
                         while (i < text.Length)
                         {
@@ -499,28 +520,39 @@ namespace LAB1_TFK
                                 break;
                             }
 
+                            lexeme += current;
+
                             // допустимые символы
-                            if (char.IsLetterOrDigit(current))
-                            {
-                                lexeme += current;
-                            }
-                            else
-                            {
-                                break;
-                            }
+                            if (!char.IsLetterOrDigit(current))
+                                hasInvalidChar = true;
 
                             i++;
                             column++;
                         }
-                        tokens.Add(new Token
+                        if (hasInvalidChar)
                         {
-                            Code = 1,
-                            Type = "Идентификатор",
-                            Lexeme = lexeme,
-                            Line = line,
-                            Start = start,
-                            End = column - 1
-                        });
+                            tokens.Add(new Token
+                            {
+                                Code = -1,
+                                Type = "Недопустимый идентификатор",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+                        }
+                        else
+                        {
+                            tokens.Add(new Token
+                            {
+                                Code = 1,
+                                Type = "Идентификатор",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+                        }
 
                         continue;
                     }
@@ -530,7 +562,7 @@ namespace LAB1_TFK
                     {
                         int start = column;
                         string lexeme = "";
-                        bool isFloat = false;
+                        int dotCount = 0;
 
                         while (i < text.Length)
                         {
@@ -542,12 +574,7 @@ namespace LAB1_TFK
                             }
                             else if (text[i] == '.')
                             {
-                                if (isFloat)
-                                {
-                                    break;
-                                }
-
-                                isFloat = true;
+                                dotCount++;
                                 lexeme += text[i];
                                 i++;
                                 column++;
@@ -558,29 +585,48 @@ namespace LAB1_TFK
                             }
                         }
 
-                        int numberCode;
-                        string type;
+                        // Валидны:
+                        // - целое: 123
+                        // - вещественное: 1.23
+                        // Невалидны: 1.2.3, 1., 12..34
+                        bool isInvalidNumber = dotCount > 1 || (dotCount == 1 && lexeme.EndsWith("."));
 
-                        if (isFloat)
+                        if (isInvalidNumber)
                         {
-                            numberCode = 6;
-                            type = "Вещественное число";
+                            tokens.Add(new Token
+                            {
+                                Code = -1,
+                                Type = "Недопустимое число",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
+                        }
+                        else if (dotCount == 1)
+                        {
+                            tokens.Add(new Token
+                            {
+                                Code = 6,
+                                Type = "Вещественное число",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
                         }
                         else
                         {
-                            numberCode = 5;
-                            type = "Целое число";
+                            tokens.Add(new Token
+                            {
+                                Code = 5,
+                                Type = "Целое число",
+                                Lexeme = lexeme,
+                                Line = line,
+                                Start = start,
+                                End = column - 1
+                            });
                         }
-
-                        tokens.Add(new Token
-                        {
-                            Code = numberCode,
-                            Type = type,
-                            Lexeme = lexeme,
-                            Line = line,
-                            Start = start,
-                            End = column - 1
-                        });
 
                         continue;
                     }
@@ -599,6 +645,15 @@ namespace LAB1_TFK
                         while (i < text.Length && text[i] != quote)
                         {
                             if (text[i] == '\n')
+                            {
+                                break;
+                            }
+
+                            // Восстановление после незакрытой строки:
+                            // если дальше в этой строке нет закрывающей кавычки,
+                            // оставляем разделитель (':', ',', '}' и т.п.) для парсера.
+                            if (IsSyntaxDelimiter(text[i]) &&
+                                !HasClosingQuoteBeforeLineEnd(text, i, quote))
                             {
                                 break;
                             }
@@ -785,11 +840,6 @@ namespace LAB1_TFK
 
                 foreach (Token token in tokens)
                 {
-                    if (token.Code == -1)
-                    {
-                        AddError(errors, token, "Лексическая ошибка");
-                    }
-
                     if (token.Code != 2)
                         significantTokens.Add(token);
                 }
@@ -933,6 +983,11 @@ namespace LAB1_TFK
                 return code == 3 || code == 4 || code == 9 || code == 12;
             }
 
+            private bool HasErrorAtCurrentPosition()
+            {
+                return errors.Any(e => e.Line == CurrentToken.Line && e.Column == CurrentToken.Start);
+            }
+
             private bool Match(int code)
             {
                 if (CurrentToken.Code == code)
@@ -1014,6 +1069,11 @@ namespace LAB1_TFK
                     }
 
                     Synchronize(true, 12);
+
+                    if (needSemicolon && IsEnd() && !HasErrorAtCurrentPosition())
+                    {
+                        Error("Ожидался символ ';'");
+                    }
                 }
             }
 
@@ -1023,8 +1083,11 @@ namespace LAB1_TFK
                 if (!Match(1))
                 {
                     Error("Ожидался идентификатор");
-                    Synchronize(true, 12);
-                    return false;
+
+                    if (IsEnd())
+                        return false;
+
+                    Synchronize(false, 3, 4, 12);
                 }
 
                 if (!Match(3)) // =
@@ -1088,10 +1151,8 @@ namespace LAB1_TFK
                     Synchronize(false, 12);
                 }
 
-                if (!needClosingBrace && IsEnd())
-                {
+                if (!needClosingBrace && IsEnd() && !HasErrorAtCurrentPosition())
                     Error("Ожидалась '}'");
-                }
             }
 
             // PAIRS → PAIR { , PAIR }
@@ -1105,7 +1166,24 @@ namespace LAB1_TFK
                 if (CurrentToken.Code == 11)
                     return true;
 
-                if (CurrentToken.Code == 12 || IsEnd())
+                if (CurrentToken.Code == 12)
+                {
+                    Error("Ожидалась ',' или '}'");
+                    Synchronize(false, 10, 11);
+
+                    if (CurrentToken.Code == 10)
+                    {
+                        Match(10);
+                    }
+
+                    if (CurrentToken.Code == 11)
+                        return true;
+
+                    if (IsEnd())
+                        return false;
+                }
+
+                if (IsEnd())
                     return false;
 
                 Pair();
@@ -1115,7 +1193,26 @@ namespace LAB1_TFK
                     if (CurrentToken.Code == 11) // }
                         return true;
 
-                    if (CurrentToken.Code == 12 || IsEnd())
+                    if (CurrentToken.Code == 12)
+                    {
+                        Error("Ожидалась ',' или '}'");
+                        Synchronize(false, 10, 11);
+
+                        if (CurrentToken.Code == 10)
+                        {
+                            Match(10);
+                            Pair();
+                            continue;
+                        }
+
+                        if (CurrentToken.Code == 11)
+                            return true;
+
+                        if (IsEnd())
+                            return false;
+                    }
+
+                    if (IsEnd())
                         return false;
 
                     if (Match(10)) // ,
@@ -1185,8 +1282,12 @@ namespace LAB1_TFK
                 {
                     if (CurrentToken.Lexeme == ".")
                         Error("Ожидалась цифра перед десятичной точкой");
-                    else
+                    else if (CurrentToken.Type == "Недопустимое число")
                         Error("Недопустимый ключ словаря");
+                    else if (CurrentToken.Type == "Незакрытая строка" || CurrentToken.Type == "Недопустимый идентификатор")
+                        Error("Недопустимый ключ словаря");
+                    else
+                        Error("Недопустимый символ внутри словаря");
 
                     Synchronize(false, 9, 10, 11);
                     return;
@@ -1208,6 +1309,8 @@ namespace LAB1_TFK
                 {
                     if (CurrentToken.Lexeme == ".")
                         Error("Ожидалась цифра перед десятичной точкой");
+                    else if (CurrentToken.Type == "Недопустимое число")
+                        Error("Недопустимое значение словаря");
                     else
                         Error("Недопустимое значение словаря");
 

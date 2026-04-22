@@ -78,9 +78,11 @@
             dataGridViewParser = new DataGridView();
             Lexer = new TabPage();
             Regular = new TabPage();
-            buttonSearch = new Button();
             dataGridViewRegular = new DataGridView();
+            buttonSearch = new Button();
             comboBoxRegular = new ComboBox();
+            AST = new TabPage();
+            button1 = new Button();
             menuStrip1.SuspendLayout();
             toolStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridViewLexer).BeginInit();
@@ -94,6 +96,7 @@
             Lexer.SuspendLayout();
             Regular.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dataGridViewRegular).BeginInit();
+            AST.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip1
@@ -466,6 +469,7 @@
             tabControl1.Controls.Add(Parser);
             tabControl1.Controls.Add(Lexer);
             tabControl1.Controls.Add(Regular);
+            tabControl1.Controls.Add(AST);
             tabControl1.Dock = DockStyle.Fill;
             tabControl1.Location = new Point(0, 0);
             tabControl1.Name = "tabControl1";
@@ -523,19 +527,6 @@
             Regular.Text = "Регулярные выражения";
             Regular.UseVisualStyleBackColor = true;
             // 
-            // buttonSearch
-            // 
-            buttonSearch.BackColor = SystemColors.Window;
-            buttonSearch.Dock = DockStyle.Top;
-            buttonSearch.FlatStyle = FlatStyle.Flat;
-            buttonSearch.Location = new Point(3, 31);
-            buttonSearch.Name = "buttonSearch";
-            buttonSearch.Size = new Size(776, 34);
-            buttonSearch.TabIndex = 2;
-            buttonSearch.Text = "Поиск";
-            buttonSearch.UseVisualStyleBackColor = false;
-            buttonSearch.Click += buttonSearch_Click;
-            // 
             // dataGridViewRegular
             // 
             dataGridViewRegular.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -551,6 +542,19 @@
             dataGridViewRegular.Size = new Size(776, 252);
             dataGridViewRegular.TabIndex = 1;
             // 
+            // buttonSearch
+            // 
+            buttonSearch.BackColor = SystemColors.Window;
+            buttonSearch.Dock = DockStyle.Top;
+            buttonSearch.FlatStyle = FlatStyle.Flat;
+            buttonSearch.Location = new Point(3, 31);
+            buttonSearch.Name = "buttonSearch";
+            buttonSearch.Size = new Size(776, 34);
+            buttonSearch.TabIndex = 2;
+            buttonSearch.Text = "Поиск";
+            buttonSearch.UseVisualStyleBackColor = false;
+            buttonSearch.Click += buttonSearch_Click;
+            // 
             // comboBoxRegular
             // 
             comboBoxRegular.Dock = DockStyle.Top;
@@ -561,6 +565,25 @@
             comboBoxRegular.Name = "comboBoxRegular";
             comboBoxRegular.Size = new Size(776, 28);
             comboBoxRegular.TabIndex = 0;
+            // 
+            // AST
+            // 
+            AST.Controls.Add(button1);
+            AST.Location = new Point(4, 29);
+            AST.Name = "AST";
+            AST.Size = new Size(782, 320);
+            AST.TabIndex = 3;
+            AST.Text = "AST";
+            AST.UseVisualStyleBackColor = true;
+            // 
+            // button1
+            // 
+            button1.Location = new Point(495, 34);
+            button1.Name = "button1";
+            button1.Size = new Size(94, 29);
+            button1.TabIndex = 0;
+            button1.Text = "button1";
+            button1.UseVisualStyleBackColor = true;
             // 
             // GUI
             // 
@@ -593,6 +616,7 @@
             Lexer.ResumeLayout(false);
             Regular.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dataGridViewRegular).EndInit();
+            AST.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -651,5 +675,7 @@
         private DataGridView dataGridViewRegular;
         private ComboBox comboBoxRegular;
         private Button buttonSearch;
+        private TabPage AST;
+        private Button button1;
     }
 }
